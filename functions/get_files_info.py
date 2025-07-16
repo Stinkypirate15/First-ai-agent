@@ -1,17 +1,9 @@
 import os
 import subprocess
+from google.genai import types
 
 def get_files_info(working_directory, directory=None):
-    """
-    Lists files and directories within the working directory.
-    
-    Args:
-        working_directory: The base directory to operate within
-        directory: Optional subdirectory to list (relative to working_directory)
-    
-    Returns:
-        String containing file listing or error message
-    """
+
     results = []
     abs_root = os.path.abspath(working_directory)
     
@@ -155,11 +147,139 @@ def run_python_file(working_directory, file_path):
         output = f"STDOUT:{result.stdout}STDERR:{result.stderr}"
         
         # Include exit code information if process failed
+        output = ""
+        if result.stdout:
+            output += result.stdout
+        if result.stderr:
+            output += result.stderr
         if result.returncode != 0:
             output += f"Process exited with code {result.returncode}"
-        
         return output
         
     except Exception as e:
         # Catch any unexpected errors during execution
         return f"Error: executing Python file: {e}"
+
+
+
+        result = functions[function_call_part.name](**args)
+def call_function(function_call_part, verbose=False):
+    # 1. If verbose is True, print the function being called and its arguments
+    if verbose:
+        print(f"Calling function: {function_call_part.name}({function_call_part.args})")
+
+    # 2. Copy the arguments from the function call and add 'working_directory'
+    args = function_call_part.args.copy()
+    args["working_directory"] = "./calculator"
+
+    # 3. Check if the function name exists in your dictionary of functions
+    if function_call_part.name not in functions:
+        # a. If not, return an error wrapped in the required structure
+        function_call_result = types.Content(
+            role="tool",
+            parts=[
+                types.Part.from_function_response(
+                    name=function_call_part.name,
+                    response={"error": f"Unknown function: {function_call_part.name}"},
+                )
+            ],
+        )
+    else:
+        # b. If the function exists:
+        #    i. Call the function using all arguments
+        result = functions[function_call_part.name](**args)
+        #    ii. Wrap the result in the required structure
+        function_call_result = types.Content(
+            role="tool",
+            parts=[
+                types.Part.from_function_response(
+                    name=function_call_part.name,
+                    response={"result": result},
+                )
+            ],
+        )
+
+    # 4. If verbose, print the result after calling the function
+    if verbose:
+        # ONLY print the actual result string!
+        print(function_call_result.parts[0].function_response.response["result"])
+
+    # 5. Return the wrapped result or error
+    return function_call_result
+
+
+
+schema_get_files_info = types.FunctionDeclaration(
+    name="get_files_info",
+    description="Lists files in the specified directory along with their sizes, constrained to the working directory.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "directory": types.Schema(
+                type=types.Type.STRING,
+                description="The directory to list files from, relative to the working directory. If not provided, lists files in the working directory itself.",
+            ),
+        },
+    ),
+)
+schema_get_file_content = types.FunctionDeclaration(
+    name="get_file_content",
+    description="gets contents of files",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="list the contents of a file",
+            ),
+        },
+    ),
+)
+functions = {
+    "get_files_info": get_files_info,
+    "get_file_content": get_file_content,
+    "run_python_file": run_python_file,
+    "write_file": write_file,
+}
+schema_run_python_file = types.FunctionDeclaration(
+    name="run_python_file",
+    description="allows you to run the contents of a python file ",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="Executes a Python file and returns the output",
+            ),
+        },
+    ),
+)
+schema_write_file = types.FunctionDeclaration(
+    name="write_file",
+    description="allows you to write to a file ",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="Path where to write the file",
+            ),
+            "content": types.Schema(
+                type=types.Type.STRING,
+                description="Content to write to the file",
+            ),
+        },
+    ),
+)
+available_functions = types.Tool(
+    function_declarations=[
+        schema_get_files_info,
+        schema_run_python_file,
+        schema_write_file,
+        schema_get_file_content
+    ]
+)
+
+
+
+

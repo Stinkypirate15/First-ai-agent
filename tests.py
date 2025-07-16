@@ -1,9 +1,7 @@
-from functions.get_files_info import run_python_file
+from functions.get_files_info import *
 
 # Now call your function with required test arguments and print results
 
 
-print(run_python_file("calculator", "main.py"))
-print(run_python_file("calculator", "tests.py"))
-print(run_python_file("calculator", "../main.py"))
-print(run_python_file("calculator", "nonexistent.py"))
+print(get_files_info({'directory': '.'}))
+print(get_files_info({'directory': 'pkg'}))
