@@ -32,15 +32,43 @@ messages = [
     types.Content(role="user", parts=[types.Part(text=user_prompt)]),
 ]
 
-response = client.models.generate_content(
+
+
+for i in range(0, 21):
+    any_function_call = False
+    response = client.models.generate_content(
     model="gemini-2.0-flash-001",
     contents=messages,
     config=types.GenerateContentConfig(
-    tools=[available_functions], system_instruction=system_prompt
-),
+    tools=[available_functions], 
+    system_instruction=system_prompt
 )
+)
+    for candidate in response.candidates:
+        messages.append(types.Content(role="model", parts=candidate.content.parts))
+        for part in candidate.content.parts:
+            if hasattr(part, "function_call") and part.function_call:
+                any_function_call = True
+                function_name = part.function_call.name
+                print(f"Calling function: {function_name}")
+                result = call_function(part.function_call)
+                messages.append(
+                    types.Content(
+                        role="model",
+                        parts=[types.Part(function_response=types.FunctionResponse(
+                            name=function_name,
+                            response={"result": str(result)}
+                        ))]
+                    )
+                )
+    if not any_function_call:
+        # Only now print (if present) and break!
+        for candidate in response.candidates:
+            for part in candidate.content.parts:
+                if hasattr(part, "text") and part.text:
+                    print(part.text)
+        break
 
-# Rest of your code for handling verbose flag and printing...
 
 #checking for a verbose flag
 candidate = response.candidates[0]
